@@ -1,6 +1,6 @@
 /**
  * @param {Element} element
- * @param {(element: Element, size: {width: number, height: number}) => void} callback
+ * @param {(element: Element, size: Size) => void} callback
  * @returns {() => void} Cleanup function
  */
 export const observeSize = (
