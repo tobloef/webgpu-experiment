@@ -1,33 +1,24 @@
 import {observeSize} from "./utils/observe-size.js";
 import {observeDevicePixelRatio} from "./utils/observe-device-pixel-ratio.js";
-import {SIZE_ZERO} from "./utils/size.js";
 
 export class WrappedCanvas {
-  /**
-   * @type {HTMLCanvasElement}
-   */
-  #element;
+  /** @type {HTMLCanvasElement} */
+  element;
 
-  /**
-   * @type {number}
-   */
+  /** @type {number} */
   #devicePixelRatio = window.devicePixelRatio;
 
-  /**
-   * @type Size
-   */
-  #unscaledSize = SIZE_ZERO;
+  #unscaledWidth;
+  #unscaledHeight;
 
-  /**
-   * @type Size
-   */
-  #size = SIZE_ZERO;
+  width;
+  height;
 
   /**
    * @param {HTMLCanvasElement} element
    */
   constructor(element) {
-    this.#element = element;
+    this.element = element;
     observeSize(element, this.#handleSizeChange.bind(this));
     observeDevicePixelRatio(element, this.#handleDevicePixelRatioChange.bind(this));
   }
@@ -59,11 +50,12 @@ export class WrappedCanvas {
   }
 
   /**
-   * @param {Element} element
-   * @param {Size} size
+   * @param {number} width
+   * @param {number} height
    */
-  #handleSizeChange(element, size) {
-    this.#unscaledSize = size;
+  #handleSizeChange(width, height) {
+    this.#unscaledWidth = width;
+    this.#unscaledHeight = height;
     this.#updateSize();
   }
 
@@ -77,9 +69,10 @@ export class WrappedCanvas {
   }
 
   #updateSize() {
-    this.#size = {
-      width: this.#unscaledSize.width * this.#devicePixelRatio,
-      height: this.#unscaledSize.height * this.#devicePixelRatio,
-    };
+    this.width = this.#unscaledWidth * this.#devicePixelRatio;
+    this.height = this.#unscaledHeight * this.#devicePixelRatio;
+
+    this.element.width = this.width;
+    this.element.height = this.height;
   }
 }

@@ -1,11 +1,11 @@
 {
   "name": "webgpu-experiment",
-  "type": "module",
   "scripts": {
     "start": "serve",
     "lint": "eslint ."
   },
   "devDependencies": {
+    "@webgpu/types": "^0.1.40",
     "eslint": "^8.56.0",
     "eslint-plugin-import": "^2.29.1",
     "eslint-plugin-jsdoc": "^48.0.2",
