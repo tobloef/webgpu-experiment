@@ -26,22 +26,23 @@ const colorTextureView = colorTexture.createView();
 
 const CLEAR_COLOR = [0.0, 0.0, 0.0, 1.0];
 
-const TRIANGLE_VERTICES = new Float32Array([
-  -1.0, -1.0,
-  +1.0, -1.0,
-  +0.0, +1.0,
+const FLOAT32_BYTES = 4;
+const BYTES_PER_VERTEX = 6 * FLOAT32_BYTES;
+
+const VERTICES = new Float32Array([
+//  X     Y    R    G    B    A
+  -1.0, -1.0, 1.0, 0.0, 0.0, 1.0,
+  +1.0, -1.0, 0.0, 1.0, 0.0, 1.0,
+  +0.0, +1.0, 0.0, 0.0, 1.0, 1.0,
 ]);
 
 const vertexBuffer = device.createBuffer({
   label: "Triangle Vertex Buffer",
-  size: TRIANGLE_VERTICES.byteLength,
+  size: VERTICES.byteLength,
   usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
 });
 
-device.queue.writeBuffer(vertexBuffer, 0, TRIANGLE_VERTICES);
-
-const FLOAT32_BYTES = 4;
-const BYTES_PER_VERTEX = 2 * FLOAT32_BYTES;
+device.queue.writeBuffer(vertexBuffer, 0, VERTICES);
 
 /** @type {GPUVertexBufferLayout} */
 const vertexBufferLayout = {
@@ -49,11 +50,16 @@ const vertexBufferLayout = {
   attributes: [
     // Position
     {
+      shaderLocation: 0,
       format: "float32x2",
       offset: 0,
-      shaderLocation: 0,
     },
-    // Could also have normals, colors, etc.
+    // Color
+    {
+      shaderLocation: 1,
+      format: "float32x4",
+      offset: 2 * FLOAT32_BYTES,
+    }
   ],
 };
 
@@ -61,32 +67,25 @@ const vertexShader = device.createShaderModule({
   label: "Vertex Shader",
   // language=WGSL
   code: `
-    struct VertexInput {
-      @location(0) pos: vec2f,
-      @builtin(instance_index) instanceIndex: u32,
+    struct Input {
+      @location(0) position: vec2f,
+      @location(1) color: vec4f,
     };
     
-    struct VertexOutput {
-      @builtin(position) pos: vec4f,
+    struct Output {
+      @builtin(position) position: vec4f,
+      @location(0) color: vec4f,
     };
     
     @group(0) @binding(0) var<uniform> scale: vec2f;
 
     @vertex
     fn main(
-      input: VertexInput
-    ) -> VertexOutput {
-      let i = f32(input.instanceIndex);
-      let o = 0.3;
-      
-      var output: VertexOutput;
-      
-      output.pos = (
-        vec4f(input.pos.x * scale.x, input.pos.y * scale.y, 0, 1)
-        + (vec4f(i, 0, 0, 0) * o)
-        - vec4f(o * 1.5, 0, 0, 0)
-      );
-      
+      input: Input
+    ) -> Output {
+      var output: Output;
+      output.position = vec4f(input.position * scale, 0, 1);
+      output.color = input.color;
       return output;
     }
   `
@@ -96,9 +95,16 @@ const fragmentShader = device.createShaderModule({
   label: "Fragment Shader",
   // language=WGSL
   code: `
+      struct Input {
+        @builtin(position) position: vec4f,
+        @location(0) color: vec4f,
+      };
+
       @fragment
-      fn main() -> @location(0) vec4f {
-        return vec4<f32>(1, 0, 0, 1);
+      fn main(
+        input: Input
+      ) -> @location(0) vec4f {
+        return input.color;
       }
   `
 });
@@ -120,7 +126,6 @@ const pipeline = device.createRenderPipeline({
   },
 });
 
-const TRIANGLE_COLOR = [0.0, 0.0, 1.0, 1.0];
 const TRIANGLE_SCALE = [0.5, 0.5];
 
 const uniformArray = new Float32Array(TRIANGLE_SCALE);
@@ -142,8 +147,8 @@ const bindGroup = device.createBindGroup({
   }],
 });
 
-const VERTEX_COUNT = TRIANGLE_VERTICES.byteLength / BYTES_PER_VERTEX;
-const INSTANCE_COUNT = 4;
+const VERTEX_COUNT = VERTICES.byteLength / BYTES_PER_VERTEX;
+const INSTANCE_COUNT = 1;
 
 const encoder = device.createCommandEncoder();
 
