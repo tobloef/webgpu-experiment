@@ -39,22 +39,84 @@ const colorTextureView = colorTexture.createView();
 const CLEAR_COLOR = [0.0, 0.0, 0.0, 1.0];
 
 const FLOAT32_BYTES = 4;
-const BYTES_PER_VERTEX = 6 * FLOAT32_BYTES;
 
-const VERTICES = new Float32Array([
-//  X     Y    R    G    B    A
-  -1.0, -1.0, 1.0, 0.0, 0.0, 1.0,
-  +1.0, -1.0, 0.0, 1.0, 0.0, 1.0,
-  +0.0, +1.0, 0.0, 0.0, 1.0, 1.0,
-]);
+const TRIANGLE_VERTEX_POSITIONS = [
+//  X     Y
+  -1.0, -1.0,
+  +1.0, -1.0,
+  +0.0, +1.0,
+];
+
+const TRIANGLE_VERTEX_COLORS = [
+// R    G    B    A
+  1.0, 0.0, 0.0, 1.0,
+  0.0, 1.0, 0.0, 1.0,
+  0.0, 0.0, 1.0, 1.0,
+];
+
+/**
+ * @param {Array<{data: Float32Array, elementsPerVertex: number}>} dataList
+ * @returns {Float32Array}
+ */
+function packVertexData(dataList) {
+  if (dataList.length === 0) {
+    throw new Error("Vertex data list is empty.");
+  }
+
+  const vertexCount = dataList[0].data.length / dataList[0].elementsPerVertex;
+
+  for (let i = 1; i < dataList.length; i++) {
+    const thisVertexCount = dataList[i].data.length / dataList[i].elementsPerVertex;
+    if (thisVertexCount !== vertexCount) {
+      throw new Error(`Vertex data at index ${i} has a different number of vertices.`);
+    }
+  }
+
+  const totalLength = dataList.reduce((total, info) => total + info.data.length, 0);
+  const vertexLength = totalLength / vertexCount;
+
+  const vertices = new Float32Array(totalLength);
+
+  for (let v = 0; v < vertexCount; v++) {
+    let offset = 0;
+    for (const info of dataList) {
+      const vertexStart = v * info.elementsPerVertex;
+      const vertexEnd = vertexStart + info.elementsPerVertex;
+      const vertexSlice = info.data.slice(vertexStart, vertexEnd);
+      vertices.set(vertexSlice, v * vertexLength + offset);
+      offset += info.elementsPerVertex;
+    }
+  }
+
+  return vertices;
+}
+
+const vertexInfoList = [
+  {
+    data: TRIANGLE_VERTEX_POSITIONS,
+    elementsPerVertex: 2,
+  },
+  {
+    data: TRIANGLE_VERTEX_COLORS,
+    elementsPerVertex: 4,
+  },
+];
+
+const BYTES_PER_VERTEX = vertexInfoList.reduce((total, info) => total + info.elementsPerVertex * FLOAT32_BYTES, 0);
+
+const TRIANGLE_VERTICES = new Float32Array(
+  packVertexData(vertexInfoList)
+);
+
+const VERTEX_COUNT = TRIANGLE_VERTICES.byteLength / BYTES_PER_VERTEX;
 
 const vertexBuffer = device.createBuffer({
   label: "Triangle Vertex Buffer",
-  size: VERTICES.byteLength,
+  size: TRIANGLE_VERTICES.byteLength,
   usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
 });
 
-device.queue.writeBuffer(vertexBuffer, 0, VERTICES);
+device.queue.writeBuffer(vertexBuffer, 0, TRIANGLE_VERTICES);
 
 /** @type {GPUVertexBufferLayout} */
 const vertexBufferLayout = {
@@ -159,7 +221,6 @@ const bindGroup = device.createBindGroup({
   }],
 });
 
-const VERTEX_COUNT = VERTICES.byteLength / BYTES_PER_VERTEX;
 const INSTANCE_COUNT = 1;
 
 const encoder = device.createCommandEncoder();
