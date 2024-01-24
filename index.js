@@ -1,4 +1,5 @@
 import {WrappedCanvas} from "./WrappedCanvas.js";
+import {packVertexData} from "./utils/pack-vertex-data.js";
 
 const canvas = WrappedCanvas.fromSelector("#canvas");
 
@@ -54,44 +55,7 @@ const TRIANGLE_VERTEX_COLORS = [
   0.0, 0.0, 1.0, 1.0,
 ];
 
-/**
- * @param {Array<{data: Float32Array, elementsPerVertex: number}>} dataList
- * @returns {Float32Array}
- */
-function packVertexData(dataList) {
-  if (dataList.length === 0) {
-    throw new Error("Vertex data list is empty.");
-  }
-
-  const vertexCount = dataList[0].data.length / dataList[0].elementsPerVertex;
-
-  for (let i = 1; i < dataList.length; i++) {
-    const thisVertexCount = dataList[i].data.length / dataList[i].elementsPerVertex;
-    if (thisVertexCount !== vertexCount) {
-      throw new Error(`Vertex data at index ${i} has a different number of vertices.`);
-    }
-  }
-
-  const totalLength = dataList.reduce((total, info) => total + info.data.length, 0);
-  const vertexLength = totalLength / vertexCount;
-
-  const vertices = new Float32Array(totalLength);
-
-  for (let v = 0; v < vertexCount; v++) {
-    let offset = 0;
-    for (const info of dataList) {
-      const vertexStart = v * info.elementsPerVertex;
-      const vertexEnd = vertexStart + info.elementsPerVertex;
-      const vertexSlice = info.data.slice(vertexStart, vertexEnd);
-      vertices.set(vertexSlice, v * vertexLength + offset);
-      offset += info.elementsPerVertex;
-    }
-  }
-
-  return vertices;
-}
-
-const vertexInfoList = [
+const triangleVertexInfoList = [
   {
     data: TRIANGLE_VERTEX_POSITIONS,
     elementsPerVertex: 2,
@@ -102,21 +66,54 @@ const vertexInfoList = [
   },
 ];
 
+const SQUARE_VERTEX_POSITIONS = [
+//  X     Y
+  -1.0, +1.0,
+  -1.0, -1.0,
+  +1.0, -1.0,
+  +1.0, +1.0,
+  -1.0, +1.0,
+  +1.0, -1.0,
+];
+
+const SQUARE_VERTEX_COLORS = [
+// R    G    B    A
+  1.0, 0.0, 0.0, 1.0,
+  0.0, 1.0, 0.0, 1.0,
+  0.0, 0.0, 1.0, 1.0,
+  1.0, 1.0, 0.5, 1.0,
+  1.0, 0.0, 0.0, 1.0,
+  0.0, 0.0, 1.0, 1.0,
+];
+
+const squareVertexInfoList = [
+  {
+    data: SQUARE_VERTEX_POSITIONS,
+    elementsPerVertex: 2,
+  },
+  {
+    data: SQUARE_VERTEX_COLORS,
+    elementsPerVertex: 4,
+  },
+];
+
+const vertexInfoList = squareVertexInfoList;
+
 const BYTES_PER_VERTEX = vertexInfoList.reduce((total, info) => total + info.elementsPerVertex * FLOAT32_BYTES, 0);
 
-const TRIANGLE_VERTICES = new Float32Array(
+const VERTICES = new Float32Array(
   packVertexData(vertexInfoList)
 );
 
-const VERTEX_COUNT = TRIANGLE_VERTICES.byteLength / BYTES_PER_VERTEX;
+const VERTEX_COUNT = VERTICES.byteLength / BYTES_PER_VERTEX;
 
 const vertexBuffer = device.createBuffer({
-  label: "Triangle Vertex Buffer",
-  size: TRIANGLE_VERTICES.byteLength,
+  label: "Vertex Buffer",
+  size: VERTICES.byteLength,
   usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
 });
 
-device.queue.writeBuffer(vertexBuffer, 0, TRIANGLE_VERTICES);
+device.queue.writeBuffer(vertexBuffer, 0, VERTICES);
 
 /** @type {GPUVertexBufferLayout} */
 const vertexBufferLayout = {
