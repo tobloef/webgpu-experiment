@@ -5,12 +5,24 @@ const canvas = WrappedCanvas.fromSelector("#canvas");
 const gpu = navigator.gpu;
 
 if (!gpu) {
-  throw new Error("WebGPU not supported.");
+  console.error("WebGPU not supported.");
 }
 
 const adapter = await gpu.requestAdapter();
 
+if (!adapter) {
+  console.error("No adapter found. WebGPU possibly disabled.");
+}
+
 const device = await adapter.requestDevice();
+
+device.lost.then((info) => {
+  console.error("WebGPU device lost.");
+  if (info.reason !== "destroyed") {
+    console.error("Attempting to restore device...");
+    // TODO: Initialize everything again
+  }
+});
 
 const context = canvas.element.getContext("webgpu");
 
