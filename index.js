@@ -72,8 +72,6 @@ const SQUARE_VERTEX_POSITIONS = [
   -1.0, -1.0,
   +1.0, -1.0,
   +1.0, +1.0,
-  -1.0, +1.0,
-  +1.0, -1.0,
 ];
 
 const SQUARE_VERTEX_COLORS = [
@@ -82,9 +80,12 @@ const SQUARE_VERTEX_COLORS = [
   0.0, 1.0, 0.0, 1.0,
   0.0, 0.0, 1.0, 1.0,
   1.0, 1.0, 0.5, 1.0,
-  1.0, 0.0, 0.0, 1.0,
-  0.0, 0.0, 1.0, 1.0,
 ];
+
+const SQUARE_INDEXES = new Uint16Array([
+  0, 1, 2,
+  0, 2, 3,
+]);
 
 const squareVertexInfoList = [
   {
@@ -105,8 +106,6 @@ const VERTICES = new Float32Array(
   packVertexData(vertexInfoList)
 );
 
-const VERTEX_COUNT = VERTICES.byteLength / BYTES_PER_VERTEX;
-
 const vertexBuffer = device.createBuffer({
   label: "Vertex Buffer",
   size: VERTICES.byteLength,
@@ -114,6 +113,16 @@ const vertexBuffer = device.createBuffer({
 });
 
 device.queue.writeBuffer(vertexBuffer, 0, VERTICES);
+
+const indexBuffer = device.createBuffer({
+  label: "Index Buffer",
+  size: SQUARE_INDEXES.byteLength,
+  usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
+});
+
+device.queue.writeBuffer(indexBuffer, 0, SQUARE_INDEXES);
+
+const INDEX_COUNT = SQUARE_INDEXES.length;
 
 /** @type {GPUVertexBufferLayout} */
 const vertexBufferLayout = {
@@ -234,8 +243,9 @@ const pass = encoder.beginRenderPass({
 
 pass.setPipeline(pipeline);
 pass.setVertexBuffer(0, vertexBuffer);
+pass.setIndexBuffer(indexBuffer, "uint16");
 pass.setBindGroup(0, bindGroup);
-pass.draw(VERTEX_COUNT, INSTANCE_COUNT);
+pass.drawIndexed(INDEX_COUNT, INSTANCE_COUNT);
 
 pass.end();
 
