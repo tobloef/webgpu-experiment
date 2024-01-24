@@ -2,4 +2,5 @@
 
 - [ ] Textures PoC
 - [ ] Improve vertex data packing to pipe into GPUVertexBufferLayout
+- [ ] Refactor write/create buffer functions
 - [ ] Figure out type importing

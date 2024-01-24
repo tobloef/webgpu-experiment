@@ -1,5 +1,6 @@
 import {WrappedCanvas} from "./WrappedCanvas.js";
 import {packVertexData} from "./utils/pack-vertex-data.js";
+import {loadTexture} from "./utils/load.js";
 
 const canvas = WrappedCanvas.fromSelector("#canvas");
 
@@ -41,37 +42,12 @@ const CLEAR_COLOR = [0.0, 0.0, 0.0, 1.0];
 
 const FLOAT32_BYTES = 4;
 
-const TRIANGLE_VERTEX_POSITIONS = [
-//  X     Y
-  -1.0, -1.0,
-  +1.0, -1.0,
-  +0.0, +1.0,
-];
-
-const TRIANGLE_VERTEX_COLORS = [
-// R    G    B    A
-  1.0, 0.0, 0.0, 1.0,
-  0.0, 1.0, 0.0, 1.0,
-  0.0, 0.0, 1.0, 1.0,
-];
-
-const triangleVertexInfoList = [
-  {
-    data: TRIANGLE_VERTEX_POSITIONS,
-    elementsPerVertex: 2,
-  },
-  {
-    data: TRIANGLE_VERTEX_COLORS,
-    elementsPerVertex: 4,
-  },
-];
-
 const SQUARE_VERTEX_POSITIONS = [
 //  X     Y
-  -1.0, +1.0,
-  -1.0, -1.0,
-  +1.0, -1.0,
-  +1.0, +1.0,
+  -1.0, +1.0, // Top Left
+  -1.0, -1.0, // Bottom Left
+  +1.0, -1.0, // Bottom Right
+  +1.0, +1.0, // Top Right
 ];
 
 const SQUARE_VERTEX_COLORS = [
@@ -80,6 +56,14 @@ const SQUARE_VERTEX_COLORS = [
   0.0, 1.0, 0.0, 1.0,
   0.0, 0.0, 1.0, 1.0,
   1.0, 1.0, 0.5, 1.0,
+];
+
+const SQUARE_VERTEX_TEXTURE_COORDINATES = [
+// X    Y
+  0.0, 0.0,
+  0.0, 1/3,
+  1/3, 1/3,
+  1/3, 0.0,
 ];
 
 const SQUARE_INDEXES = new Uint16Array([
@@ -95,6 +79,10 @@ const squareVertexInfoList = [
   {
     data: SQUARE_VERTEX_COLORS,
     elementsPerVertex: 4,
+  },
+  {
+    data: SQUARE_VERTEX_TEXTURE_COORDINATES,
+    elementsPerVertex: 2,
   },
 ];
 
@@ -139,9 +127,33 @@ const vertexBufferLayout = {
       shaderLocation: 1,
       format: "float32x4",
       offset: 2 * FLOAT32_BYTES,
+    },
+    // Texture Coordinates
+    {
+      shaderLocation: 2,
+      format: "float32x2",
+      offset: 6 * FLOAT32_BYTES,
     }
   ],
 };
+
+const boxTextureData = await loadTexture("crate.png");
+
+const boxTexture = device.createTexture({
+  label: "Box Texture",
+  size: [boxTextureData.width, boxTextureData.height],
+  format: "rgba8unorm",
+  usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+});
+
+device.queue.writeTexture(
+  { texture: boxTexture },
+  boxTextureData.data,
+  { bytesPerRow: boxTextureData.width * 4 },
+  { width: boxTextureData.width, height: boxTextureData.height },
+);
+
+const sampler = device.createSampler();
 
 const vertexShader = device.createShaderModule({
   label: "Vertex Shader",
@@ -150,11 +162,13 @@ const vertexShader = device.createShaderModule({
     struct Input {
       @location(0) position: vec2f,
       @location(1) color: vec4f,
+      @location(2) textureCoordinates: vec2f,
     };
     
     struct Output {
       @builtin(position) position: vec4f,
       @location(0) color: vec4f,
+      @location(1) textureCoordinates: vec2f,
     };
     
     @group(0) @binding(0) var<uniform> scale: vec2f;
@@ -164,8 +178,11 @@ const vertexShader = device.createShaderModule({
       input: Input
     ) -> Output {
       var output: Output;
+      
       output.position = vec4f(input.position * scale, 0, 1);
       output.color = input.color;
+      output.textureCoordinates = input.position;
+      
       return output;
     }
   `
@@ -175,16 +192,27 @@ const fragmentShader = device.createShaderModule({
   label: "Fragment Shader",
   // language=WGSL
   code: `
+       @group(0) @binding(1) var textureSampler: sampler;
+       @group(0) @binding(2) var texture: texture_2d<f32>;
+
       struct Input {
         @builtin(position) position: vec4f,
         @location(0) color: vec4f,
+        @location(1) textureCoordinates: vec2f,
       };
 
       @fragment
       fn main(
         input: Input
       ) -> @location(0) vec4f {
-        return input.color;
+      
+        let textureColor = textureSample(
+          texture,
+          textureSampler,
+          input.textureCoordinates
+        );
+        
+        return input.color * textureColor;
       }
   `
 });
@@ -219,12 +247,22 @@ device.queue.writeBuffer(uniformBuffer, 0, uniformArray);
 const bindGroup = device.createBindGroup({
   label: "Bind Group",
   layout: pipeline.getBindGroupLayout(0),
-  entries: [{
-    binding: 0,
-    resource: {
-      buffer: uniformBuffer,
+  entries: [
+    {
+      binding: 0,
+      resource: {
+        buffer: uniformBuffer,
+      },
     },
-  }],
+    {
+      binding: 1,
+      resource: sampler,
+    },
+    {
+      binding: 2,
+      resource: boxTexture.createView(),
+    },
+  ],
 });
 
 const INSTANCE_COUNT = 1;
@@ -253,3 +291,4 @@ const commandBuffer = encoder.finish();
 
 device.queue.submit([commandBuffer]);
 
+boxTexture.destroy();
