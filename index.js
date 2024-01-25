@@ -1,6 +1,6 @@
 import {WrappedCanvas} from "./WrappedCanvas.js";
 import {packVertexData} from "./utils/pack-vertex-data.js";
-import {loadTexture} from "./utils/load.js";
+import {loadDebugTexture, loadTexture} from "./utils/load.js";
 
 const canvas = WrappedCanvas.fromSelector("#canvas");
 
@@ -35,9 +35,6 @@ context.configure({
   format: presentationFormat,
 });
 
-const colorTexture = context.getCurrentTexture();
-const colorTextureView = colorTexture.createView();
-
 const CLEAR_COLOR = [0.0, 0.0, 0.0, 1.0];
 
 const FLOAT32_BYTES = 4;
@@ -50,12 +47,20 @@ const SQUARE_VERTEX_POSITIONS = [
   +1.0, +1.0, // Top Right
 ];
 
-const SQUARE_VERTEX_COLORS = [
+/*const SQUARE_VERTEX_COLORS = [
 // R    G    B    A
   1.0, 0.0, 0.0, 1.0,
   0.0, 1.0, 0.0, 1.0,
   0.0, 0.0, 1.0, 1.0,
   1.0, 1.0, 0.5, 1.0,
+];*/
+
+const SQUARE_VERTEX_COLORS = [
+// R    G    B    A
+  1.0, 1.0, 1.0, 1.0,
+  1.0, 1.0, 1.0, 1.0,
+  1.0, 1.0, 1.0, 1.0,
+  1.0, 1.0, 1.0, 1.0,
 ];
 
 const SQUARE_VERTEX_TEXTURE_COORDINATES = [
@@ -88,7 +93,7 @@ const squareVertexInfoList = [
 
 const vertexInfoList = squareVertexInfoList;
 
-const BYTES_PER_VERTEX = vertexInfoList.reduce((total, info) => total + info.elementsPerVertex * FLOAT32_BYTES, 0);
+const BYTES_PER_VERTEX = vertexInfoList.reduce((total, info) => total + info.elementsPerVertex*FLOAT32_BYTES, 0);
 
 const VERTICES = new Float32Array(
   packVertexData(vertexInfoList)
@@ -126,32 +131,16 @@ const vertexBufferLayout = {
     {
       shaderLocation: 1,
       format: "float32x4",
-      offset: 2 * FLOAT32_BYTES,
+      offset: 2*FLOAT32_BYTES,
     },
     // Texture Coordinates
     {
       shaderLocation: 2,
       format: "float32x2",
-      offset: 6 * FLOAT32_BYTES,
+      offset: 6*FLOAT32_BYTES,
     }
   ],
 };
-
-const boxTextureData = await loadTexture("crate.png");
-
-const boxTexture = device.createTexture({
-  label: "Box Texture",
-  size: [boxTextureData.width, boxTextureData.height],
-  format: "rgba8unorm",
-  usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
-});
-
-device.queue.writeTexture(
-  { texture: boxTexture },
-  boxTextureData.data,
-  { bytesPerRow: boxTextureData.width * 4 },
-  { width: boxTextureData.width, height: boxTextureData.height },
-);
 
 const sampler = device.createSampler();
 
@@ -181,7 +170,7 @@ const vertexShader = device.createShaderModule({
       
       output.position = vec4f(input.position * scale, 0, 1);
       output.color = input.color;
-      output.textureCoordinates = input.position;
+      output.textureCoordinates = input.textureCoordinates;
       
       return output;
     }
@@ -212,7 +201,7 @@ const fragmentShader = device.createShaderModule({
           input.textureCoordinates
         );
         
-        return input.color * textureColor;
+        return textureColor * input.color;
       }
   `
 });
@@ -234,15 +223,34 @@ const pipeline = device.createRenderPipeline({
   },
 });
 
-const TRIANGLE_SCALE = [0.5, 0.5];
+const SCALE = [0.5, 0.5];
 
-const uniformArray = new Float32Array(TRIANGLE_SCALE);
+const uniformArray = new Float32Array(SCALE);
 const uniformBuffer = device.createBuffer({
   label: "Uniform Buffer",
   size: uniformArray.byteLength,
   usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 });
 device.queue.writeBuffer(uniformBuffer, 0, uniformArray);
+
+const boxTextureData = await loadTexture("crate.png");
+
+const boxTexture = device.createTexture({
+  label: "Box Texture",
+  size: [boxTextureData.width, boxTextureData.height],
+  format: "rgba8unorm",
+  usage: (
+    GPUTextureUsage.TEXTURE_BINDING |
+    GPUTextureUsage.COPY_DST |
+    GPUTextureUsage.RENDER_ATTACHMENT
+  ),
+});
+
+device.queue.copyExternalImageToTexture(
+  {source: boxTextureData, flipY: true},
+  {texture: boxTexture},
+  [boxTextureData.width, boxTextureData.height]
+);
 
 const bindGroup = device.createBindGroup({
   label: "Bind Group",
@@ -267,12 +275,14 @@ const bindGroup = device.createBindGroup({
 
 const INSTANCE_COUNT = 1;
 
+const colorTexture = context.getCurrentTexture();
+
 const encoder = device.createCommandEncoder();
 
 const pass = encoder.beginRenderPass({
   label: "Render Pass",
   colorAttachments: [{
-    view: colorTextureView,
+    view: colorTexture.createView(),
     loadOp: "clear",
     clearValue: CLEAR_COLOR,
     storeOp: "store",
@@ -290,5 +300,3 @@ pass.end();
 const commandBuffer = encoder.finish();
 
 device.queue.submit([commandBuffer]);
-
-boxTexture.destroy();

@@ -16,60 +16,64 @@ export async function loadShader(url) {
 /**
  *
  * @param {string} url
- * @returns {Promise<{
- *   width: number,
- *   height: number,
- *   data: Uint8Array,
- * }>}
+ * @returns {Promise<ImageBitmap>}
  */
 export async function loadTexture(url) {
-  const debugTexture = [];
-
-  for (let x = 0; x < 1800; x++) {
-    for (let y = 0; y < 1800; y++) {
-      debugTexture.push(64, 64, 255, 255);
-    }
-  }
-
-  return {
-    width: 1800,
-    height: 1800,
-    data: new Uint8Array(debugTexture),
-  };
-
   const response = await fetch(url);
 
   if (!response.ok) {
     throw new Error(`Failed to fetch image from ${url}.`);
   }
 
-  const image = new Image();
+  const blob = await response.blob();
 
-  image.src = url;
+  const bitmap = await createImageBitmap(blob, {
+    colorSpaceConversion: "none",
+  });
 
-  await image.decode();
+  // Write the bitmap to a canvas
 
-  const canvas = new OffscreenCanvas(
-    image.width,
-    image.height
-  );
-
+  const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
   const context = canvas.getContext("2d");
 
-  context.drawImage(image, 0, 0);
+  context.drawImage(bitmap, 0, 0);
 
-  const imageData = context.getImageData(
-    0,
-    0,
-    image.width,
-    image.height
-  );
+  const bitmap2 = await createImageBitmap(canvas, {
+    colorSpaceConversion: "none",
+  });
 
-  const data = new Uint8Array(imageData.data);
+return bitmap2;
+}
 
-  return {
-    width: image.width,
-    height: image.height,
-    data,
-  };
+/**
+ * @param {number} width
+ * @param {number} height
+ * @returns {Promise<ImageBitmap>}
+ */
+export async function loadDebugTexture(width, height) {
+  // Create an off-screen canvas and draw a grid debug texture to it
+  const offscreenCanvas = new OffscreenCanvas(width, height);
+  const context = offscreenCanvas.getContext("2d");
+
+  const padding = 20;
+
+  const paddedWidth = width - padding * 2;
+  const paddedHeight = height - padding * 2;
+
+  context.fillStyle = "red";
+  context.fillRect(0, 0, width, height);
+
+  context.fillStyle = "white";
+  context.fillRect(padding, padding, paddedWidth, paddedHeight);
+
+  context.fillStyle = "black";
+  context.fillRect(padding, padding, paddedWidth / 2, paddedHeight / 2);
+  context.fillRect(paddedWidth / 2 + padding, paddedHeight / 2 + padding, paddedWidth / 2, paddedHeight / 2);
+
+  // Convert the canvas to an ImageBitmap
+  const bitmap = await createImageBitmap(offscreenCanvas, {
+    colorSpaceConversion: "none",
+  });
+
+  return bitmap;
 }
