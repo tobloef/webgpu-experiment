@@ -47,21 +47,23 @@ const SQUARE_VERTEX_POSITIONS = [
   +1.0, +1.0, // Top Right
 ];
 
-/*const SQUARE_VERTEX_COLORS = [
+const COLORED_SQUARE_VERTEX_COLORS = [
 // R    G    B    A
   1.0, 0.0, 0.0, 1.0,
   0.0, 1.0, 0.0, 1.0,
   0.0, 0.0, 1.0, 1.0,
   1.0, 1.0, 0.5, 1.0,
-];*/
+];
 
-const SQUARE_VERTEX_COLORS = [
+const WHITE_SQUARE_VERTEX_COLORS = [
 // R    G    B    A
   1.0, 1.0, 1.0, 1.0,
   1.0, 1.0, 1.0, 1.0,
   1.0, 1.0, 1.0, 1.0,
   1.0, 1.0, 1.0, 1.0,
 ];
+
+const SQUARE_VERTEX_COLORS = COLORED_SQUARE_VERTEX_COLORS;
 
 const SQUARE_VERTEX_TEXTURE_COORDINATES = [
 // X    Y
