@@ -2,7 +2,7 @@
  * @typedef {{
  *   maxDeltaTime?: number,
  *   fixedDeltaTime?: number,
- *   onUpdate: (deltaTime: number, frameProgress: number) => void,
+ *   onUpdate?: (deltaTime: number, frameProgress: number) => void,
  *   onFixedUpdate?: (fixedDeltaTime: number) => void,
  * }} GameLoopConfig
  */
@@ -49,7 +49,7 @@ export function startGameLoop(config) {
 
     const frameProgress = timeAccumulator / fixedDeltaTime;
 
-    onUpdate(deltaTime, frameProgress);
+    onUpdate?.(deltaTime, frameProgress);
 
     requestAnimationFrame(onAnimationFrame);
   }
