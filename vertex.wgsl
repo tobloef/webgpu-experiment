@@ -10,7 +10,11 @@ struct Output {
     @location(1) textureCoordinates: vec2f,
 };
 
-@group(0) @binding(0) var<uniform> scale: vec2f;
+struct Uniforms {
+    resolution: vec2f,
+};
+
+@group(0) @binding(0) var<uniform> uniforms: Uniforms;
 
 @vertex
 fn main(
@@ -18,9 +22,14 @@ fn main(
 ) -> Output {
     var output: Output;
 
-    output.position = vec4f(input.position * scale, 0, 1);
+    let position = applyResolution(input.position);
+    output.position = vec4f(position, 0, 1);
     output.color = input.color;
     output.textureCoordinates = input.textureCoordinates;
 
     return output;
+}
+
+fn applyResolution(position: vec2f) -> vec2f {
+    return ((position / uniforms.resolution) * 2 - 1) * vec2f(1, -1);
 }

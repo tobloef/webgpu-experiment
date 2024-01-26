@@ -5,19 +5,27 @@ import {WebGPUCanvas} from "./utils/web-gpu-canvas.js";
 
 WebGPUCanvas.define();
 
-const SCALE = [0.5, 0.5];
-
 const CLEAR_COLOR = [0.0, 0.0, 0.0, 1.0];
 
 const FLOAT32_BYTES = 4;
 
-const SQUARE_VERTEX_POSITIONS = [
+const SQUARE_VERTEX_PIXEL_POSITIONS = [
+//   X    Y
+     0,   0, // Top Left
+     0, 300, // Bottom Left
+   300, 300, // Bottom Right
+   300,   0, // Top Right
+];
+
+const SQUARE_VERTEX_RELATIVE_POSITIONS = [
 //  X     Y
   -1.0, +1.0, // Top Left
   -1.0, -1.0, // Bottom Left
   +1.0, -1.0, // Bottom Right
   +1.0, +1.0, // Top Right
 ];
+
+const SQUARE_VERTEX_POSITIONS = SQUARE_VERTEX_PIXEL_POSITIONS;
 
 const COLORED_SQUARE_VERTEX_COLORS = [
 // R    G    B    A
@@ -172,8 +180,12 @@ async function initialize() {
     },
   });
 
-  const uniformArray = new Float32Array(SCALE);
-  const uniformBuffer = device.createBuffer({
+  const uniformArray = new Float32Array([
+    canvas.width,
+    canvas.height,
+  ]);
+
+  uniformBuffer = device.createBuffer({
     label: "Uniform Buffer",
     size: uniformArray.byteLength,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
@@ -230,6 +242,7 @@ let pipeline;
 let vertexBuffer;
 let indexBuffer;
 let bindGroup;
+let uniformBuffer;
 
 await initialize();
 
@@ -265,6 +278,13 @@ function render() {
 }
 
 canvas.onResize((width, height) => {
+  const newUniformArray = new Float32Array([
+    width,
+    height,
+  ]);
+
+  device.queue.writeBuffer(uniformBuffer, 0, newUniformArray);
+
   render();
 });
 
