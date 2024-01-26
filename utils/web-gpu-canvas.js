@@ -1,7 +1,6 @@
-import {clamp} from "./utils/clamp.js";
-import {observeSize} from "./utils/observe-size.js";
-import {getDefaultGpuDevice} from "./utils/get-default-gpu-device.js";
-import {sleep} from "./utils/sleep.js";
+import {clamp} from "./clamp.js";
+import {observeSize} from "./observe-size.js";
+import {getDefaultGpuDevice} from "./get-default-gpu-device.js";
 
 /**
  * @typedef {{ width: number, height: number }} Size

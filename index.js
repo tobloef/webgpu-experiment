@@ -1,7 +1,7 @@
 import {packVertexData} from "./utils/pack-vertex-data.js";
 import {loadShader, loadTexture} from "./utils/load.js";
 import {getDefaultGpuDevice} from "./utils/get-default-gpu-device.js";
-import {WebGPUCanvas} from "./WebGPUCanvas.js";
+import {WebGPUCanvas} from "./utils/web-gpu-canvas.js";
 
 WebGPUCanvas.define();
 
