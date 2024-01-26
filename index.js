@@ -155,7 +155,7 @@ async function initialize() {
     code: await loadShader("fragment.wgsl")
   });
 
-  pipeline = device.createRenderPipeline({
+  pipeline = await device.createRenderPipelineAsync({
     label: "Render Pipeline",
     layout: "auto",
     vertex: {
