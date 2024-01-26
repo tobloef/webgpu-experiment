@@ -1,6 +1,9 @@
 # TODO
 
-- [ ] Look into destroying resources once used
+- [ ] Multiple objects
+- [ ] Hierarchical transforms
+- [ ] 2D Camera
+- [ ] Simple 2D roguelike demo
 
 ## Refactoring
 
