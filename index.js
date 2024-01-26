@@ -181,9 +181,12 @@ async function initialize() {
   });
 
   const uniformArray = new Float32Array([
-    canvas.width,
-    canvas.height,
+    canvas.width, canvas.height, // Resolution
+    0, 0, // Translation
   ]);
+
+  const resolutionValue = uniformArray.subarray(0, 2);
+  const translationValue = uniformArray.subarray(2, 4);
 
   uniformBuffer = device.createBuffer({
     label: "Uniform Buffer",
@@ -231,6 +234,32 @@ async function initialize() {
       },
     ],
   });
+
+  // When left arrow is pressed, translate left
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowLeft") {
+      translationValue[0] -= 10;
+    }
+    if (event.key === "ArrowRight") {
+      translationValue[0] += 10;
+    }
+    if (event.key === "ArrowUp") {
+      translationValue[1] -= 10;
+    }
+    if (event.key === "ArrowDown") {
+      translationValue[1] += 10;
+    }
+    device.queue.writeBuffer(uniformBuffer, 0, uniformArray);
+    render();
+  });
+
+  canvas.onResize((width, height) => {
+    resolutionValue.set([width, height]);
+
+    device.queue.writeBuffer(uniformBuffer, 0, uniformArray);
+
+    render();
+  });
 }
 
 /** @type {WebGPUCanvas} */
@@ -276,16 +305,5 @@ function render() {
 
   device.queue.submit([commandBuffer]);
 }
-
-canvas.onResize((width, height) => {
-  const newUniformArray = new Float32Array([
-    width,
-    height,
-  ]);
-
-  device.queue.writeBuffer(uniformBuffer, 0, newUniformArray);
-
-  render();
-});
 
 render();
