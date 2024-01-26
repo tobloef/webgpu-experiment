@@ -222,7 +222,7 @@ async function initialize() {
 }
 
 /** @type {WebGPUCanvas} */
-const canvas = document.querySelector("#canvas");
+const canvas = document.querySelector("#webgpu-canvas");
 
 let device;
 let context;
