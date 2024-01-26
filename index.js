@@ -2,6 +2,7 @@ import {packVertexData} from "./utils/pack-vertex-data.js";
 import {loadShader, loadTexture} from "./utils/load.js";
 import {getDefaultGpuDevice} from "./utils/get-default-gpu-device.js";
 import {WebGPUCanvas} from "./utils/web-gpu-canvas.js";
+import {degToRad} from "./utils/deg-to-rad.js";
 
 WebGPUCanvas.define();
 
@@ -183,10 +184,14 @@ async function initialize() {
   const uniformArray = new Float32Array([
     canvas.width, canvas.height, // Resolution
     0, 0, // Translation
+    1, 0, // Rotation
+    1, 1, // Scale
   ]);
 
   const resolutionValue = uniformArray.subarray(0, 2);
   const translationValue = uniformArray.subarray(2, 4);
+  const rotationValue = uniformArray.subarray(4, 6);
+  const scaleValue = uniformArray.subarray(6, 8);
 
   uniformBuffer = device.createBuffer({
     label: "Uniform Buffer",
@@ -235,20 +240,49 @@ async function initialize() {
     ],
   });
 
+  let angle = 0;
+
   // When left arrow is pressed, translate left
   window.addEventListener("keydown", (event) => {
     if (event.key === "ArrowLeft") {
-      translationValue[0] -= 10;
+      translationValue[0] -= 100;
     }
     if (event.key === "ArrowRight") {
-      translationValue[0] += 10;
+      translationValue[0] += 100;
     }
     if (event.key === "ArrowUp") {
-      translationValue[1] -= 10;
+      translationValue[1] -= 100;
     }
     if (event.key === "ArrowDown") {
-      translationValue[1] += 10;
+      translationValue[1] += 100;
     }
+
+    if (event.key === "k") {
+      angle -= 10;
+      let rads = degToRad(angle)
+      rotationValue[0] = Math.cos(rads);
+      rotationValue[1] = Math.sin(rads);
+    }
+    if (event.key === "l") {
+      angle += 10;
+      let rads = degToRad(angle)
+      rotationValue[0] = Math.cos(rads);
+      rotationValue[1] = Math.sin(rads);
+    }
+
+    if (event.key === "v") {
+      scaleValue[0] -= 0.1;
+    }
+    if (event.key === "b") {
+      scaleValue[0] += 0.1;
+    }
+    if (event.key === "n") {
+      scaleValue[1] -= 0.1;
+    }
+    if (event.key === "m") {
+      scaleValue[1] += 0.1;
+    }
+
     device.queue.writeBuffer(uniformBuffer, 0, uniformArray);
     render();
   });

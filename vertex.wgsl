@@ -13,6 +13,8 @@ struct Output {
 struct Uniforms {
     resolution: vec2f,
     translation: vec2f,
+    rotation: vec2f,
+    scale: vec2f,
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -23,8 +25,15 @@ fn main(
 ) -> Output {
     var output: Output;
 
-    let translatedValue = input.position + uniforms.translation;
-    let position = applyResolution(translatedValue);
+    let scaledValue = input.position * uniforms.scale;
+
+    let rotatedValue = vec2f(
+        scaledValue.x * uniforms.rotation.x - scaledValue.y * uniforms.rotation.y,
+        scaledValue.x * uniforms.rotation.y + scaledValue.y * uniforms.rotation.x
+    );
+    let translatedValue = rotatedValue + uniforms.translation;
+
+    let position = pixelSpaceToClipSpace(translatedValue);
 
     output.position = vec4f(position, 0, 1);
     output.color = input.color;
@@ -33,6 +42,6 @@ fn main(
     return output;
 }
 
-fn applyResolution(position: vec2f) -> vec2f {
+fn pixelSpaceToClipSpace(position: vec2f) -> vec2f {
     return ((position / uniforms.resolution) * 2 - 1) * vec2f(1, -1);
 }
