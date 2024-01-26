@@ -33,5 +33,6 @@ module.exports = {
     "jsdoc/require-param-description": "off",
     "jsdoc/require-returns-description": "off",
     "import/extensions": ["error", "ignorePackages"],
+    "import/no-unresolved": ["error", { "ignore": ["^https?://"] }],
   }
 }

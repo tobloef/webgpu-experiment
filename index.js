@@ -3,6 +3,10 @@ import {loadShader, loadTexture} from "./utils/load.js";
 import {getDefaultGpuDevice} from "./utils/get-default-gpu-device.js";
 import {WebGPUCanvas} from "./utils/web-gpu-canvas.js";
 import {degToRad} from "./utils/deg-to-rad.js";
+import {
+  mat3,
+  vec2,
+} from 'https://wgpu-matrix.org/dist/2.x/wgpu-matrix.module.js';
 
 WebGPUCanvas.define();
 
@@ -10,12 +14,14 @@ const CLEAR_COLOR = [0.0, 0.0, 0.0, 1.0];
 
 const FLOAT32_BYTES = 4;
 
+const SQUARE_SIZE = 300;
+
 const SQUARE_VERTEX_PIXEL_POSITIONS = [
-//   X    Y
-     0,   0, // Top Left
-     0, 300, // Bottom Left
-   300, 300, // Bottom Right
-   300,   0, // Top Right
+//          X            Y
+            0,           0, // Top Left
+            0, SQUARE_SIZE, // Bottom Left
+  SQUARE_SIZE, SQUARE_SIZE, // Bottom Right
+  SQUARE_SIZE,           0, // Top Right
 ];
 
 const SQUARE_VERTEX_RELATIVE_POSITIONS = [
@@ -183,15 +189,12 @@ async function initialize() {
 
   const uniformArray = new Float32Array([
     canvas.width, canvas.height, // Resolution
-    0, 0, // Translation
-    1, 0, // Rotation
-    1, 1, // Scale
+    0, 0, // Padding
+    ...mat3.identity(), // Transform
   ]);
 
   const resolutionValue = uniformArray.subarray(0, 2);
-  const translationValue = uniformArray.subarray(2, 4);
-  const rotationValue = uniformArray.subarray(4, 6);
-  const scaleValue = uniformArray.subarray(6, 8);
+  const transformValue = uniformArray.subarray(4, 16);
 
   uniformBuffer = device.createBuffer({
     label: "Uniform Buffer",
@@ -240,47 +243,48 @@ async function initialize() {
     ],
   });
 
-  let angle = 0;
-
   // When left arrow is pressed, translate left
   window.addEventListener("keydown", (event) => {
     if (event.key === "ArrowLeft") {
-      translationValue[0] -= 100;
+      mat3.translate(transformValue, [-100, 0], transformValue);
     }
     if (event.key === "ArrowRight") {
-      translationValue[0] += 100;
+      mat3.translate(transformValue, [100, 0], transformValue);
     }
     if (event.key === "ArrowUp") {
-      translationValue[1] -= 100;
+      mat3.translate(transformValue, [0, -100], transformValue);
     }
     if (event.key === "ArrowDown") {
-      translationValue[1] += 100;
+      mat3.translate(transformValue, [0, 100], transformValue);
     }
 
+    const size = vec2.fromValues(SQUARE_SIZE, SQUARE_SIZE);
+    const halfSize = vec2.scale(size, 0.5);
+    const negHalfSize = vec2.negate(halfSize);
+
     if (event.key === "k") {
-      angle -= 10;
-      let rads = degToRad(angle)
-      rotationValue[0] = Math.cos(rads);
-      rotationValue[1] = Math.sin(rads);
+      // Origin to center
+      mat3.translate(transformValue, halfSize, transformValue);
+      mat3.rotate(transformValue, degToRad(-10), transformValue);
+      mat3.translate(transformValue, negHalfSize, transformValue);
     }
     if (event.key === "l") {
-      angle += 10;
-      let rads = degToRad(angle)
-      rotationValue[0] = Math.cos(rads);
-      rotationValue[1] = Math.sin(rads);
+      mat3.translate(transformValue, halfSize, transformValue);
+      mat3.rotate(transformValue, degToRad(10), transformValue);
+      mat3.translate(transformValue, negHalfSize, transformValue);
     }
 
     if (event.key === "v") {
-      scaleValue[0] -= 0.1;
+      mat3.scale(transformValue, [0.9, 1], transformValue);
     }
     if (event.key === "b") {
-      scaleValue[0] += 0.1;
+      mat3.scale(transformValue, [1.1, 1], transformValue);
     }
     if (event.key === "n") {
-      scaleValue[1] -= 0.1;
+      mat3.scale(transformValue, [1, 0.9], transformValue);
     }
     if (event.key === "m") {
-      scaleValue[1] += 0.1;
+      mat3.scale(transformValue, [1, 1.1], transformValue);
     }
 
     device.queue.writeBuffer(uniformBuffer, 0, uniformArray);

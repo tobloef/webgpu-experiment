@@ -12,9 +12,7 @@ struct Output {
 
 struct Uniforms {
     resolution: vec2f,
-    translation: vec2f,
-    rotation: vec2f,
-    scale: vec2f,
+    transformation: mat3x3f
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -25,17 +23,10 @@ fn main(
 ) -> Output {
     var output: Output;
 
-    let scaledValue = input.position * uniforms.scale;
+    let transformedPosition = (uniforms.transformation * vec3f(input.position, 1)).xy;
+    let clipSpacePosition = pixelSpaceToClipSpace(transformedPosition);
 
-    let rotatedValue = vec2f(
-        scaledValue.x * uniforms.rotation.x - scaledValue.y * uniforms.rotation.y,
-        scaledValue.x * uniforms.rotation.y + scaledValue.y * uniforms.rotation.x
-    );
-    let translatedValue = rotatedValue + uniforms.translation;
-
-    let position = pixelSpaceToClipSpace(translatedValue);
-
-    output.position = vec4f(position, 0, 1);
+    output.position = vec4f(clipSpacePosition, 0, 1);
     output.color = input.color;
     output.textureCoordinates = input.textureCoordinates;
 
