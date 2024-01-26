@@ -1,6 +1,6 @@
 /**
  * @param {Element} element
- * @param {(element: Element, devicePixelRatio: number) => void} callback
+ * @param {(devicePixelRatio: number) => void} callback
  * @returns {() => void} Cleanup function
  */
 export const observeDevicePixelRatio = (
@@ -18,7 +18,7 @@ export const observeDevicePixelRatio = (
     );
 
     const listener = () => {
-      callback(element, window.devicePixelRatio);
+      callback(window.devicePixelRatio);
       cleanup?.();
       setTimeout(update);
     };
@@ -30,7 +30,7 @@ export const observeDevicePixelRatio = (
     };
   }
 
-  callback(element, window.devicePixelRatio);
+  callback(window.devicePixelRatio);
   update();
 
   return cleanup;

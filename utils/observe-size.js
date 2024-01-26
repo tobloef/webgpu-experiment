@@ -10,32 +10,32 @@ export const observeSize = (
   let previousWidth = 0;
   let previousHeight = 0;
 
-  const updateSize = () => {
-    const width = element.clientWidth;
-    const height = element.clientHeight;
+  const resizeObserver = new ResizeObserver((entries) => {
+    for (const entry of entries) {
+      const size = entry.devicePixelContentBoxSize?.[0];
 
-    if (
-      width === previousWidth &&
-      height === previousHeight
-    ) {
-      return;
+      const width = size.inlineSize;
+      const height = size.blockSize;
+
+      if (
+        width === previousWidth &&
+        height === previousHeight
+      ) {
+        return;
+      }
+
+      previousWidth = width;
+      previousHeight = height;
+
+      callback(width, height);
     }
+  });
 
-    previousWidth = width;
-    previousHeight = height;
-
-    callback(width, height);
-  };
-
-  const resizeObserver = new ResizeObserver(updateSize);
-
-  resizeObserver.observe(element);
+  resizeObserver.observe(element, {box: "device-pixel-content-box"});
 
   const cleanup = () => {
     resizeObserver.disconnect();
   };
-
-  updateSize();
 
   return cleanup;
 };

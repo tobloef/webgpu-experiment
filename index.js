@@ -1,22 +1,18 @@
-import {WrappedCanvas} from "./WrappedCanvas.js";
 import {packVertexData} from "./utils/pack-vertex-data.js";
-import {loadDebugTexture, loadTexture} from "./utils/load.js";
+import {loadTexture} from "./utils/load.js";
+import {getDefaultGpuDevice} from "./utils/get-default-gpu-device.js";
+import {WebGPUCanvas} from "./WebGPUCanvas.js";
 
-const canvas = WrappedCanvas.fromSelector("#canvas");
+WebGPUCanvas.define();
 
-const gpu = navigator.gpu;
+/** @type {WebGPUCanvas} */
+const canvas = document.querySelector("#canvas");
 
-if (!gpu) {
-  console.error("WebGPU not supported.");
+const device = await getDefaultGpuDevice();
+
+if (!device) {
+  throw new Error("WebGPU is unsupported or disabled.");
 }
-
-const adapter = await gpu.requestAdapter();
-
-if (!adapter) {
-  console.error("No adapter found. WebGPU possibly disabled.");
-}
-
-const device = await adapter.requestDevice();
 
 device.lost.then((info) => {
   console.error("WebGPU device lost.");
@@ -26,7 +22,7 @@ device.lost.then((info) => {
   }
 });
 
-const context = canvas.element.getContext("webgpu");
+const context = canvas.getContext("webgpu");
 
 const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
 
@@ -143,6 +139,47 @@ const vertexBufferLayout = {
     }
   ],
 };
+
+const testShader = device.createShaderModule({
+  label: "Test Shader",
+  // language=WGSL
+  code: `
+    struct OurVertexShaderOutput {
+        @builtin(position) position: vec4f,
+    };
+    
+    @vertex fn vs(
+        @builtin(vertex_index) vertexIndex : u32
+    ) -> OurVertexShaderOutput {
+        let pos = array(
+            vec2f(-1.0,  3.0),
+            vec2f( 3.0, -1.0),
+            vec2f(-1.0, -1.0),
+        );
+    
+        var vsOutput: OurVertexShaderOutput;
+        vsOutput.position = vec4f(pos[vertexIndex], 0.0, 1.0);
+        return vsOutput;
+    }
+    
+    @fragment fn fs(fsInput: OurVertexShaderOutput) -> @location(0) vec4f {
+        let hv = vec2f(floor(fsInput.position.xy % 2));
+        return vec4f(1, 0, 1, 1) * hv.x + vec4f(0, 1, 0, 1) * hv.y;
+    }
+  `,
+});
+
+const testPipeline = device.createRenderPipeline({
+  label: 'hardcoded checkerboard triangle pipeline',
+  layout: 'auto',
+  vertex: {
+    module: testShader,
+  },
+  fragment: {
+    module: testShader,
+    targets: [{ format: presentationFormat }],
+  },
+});
 
 const sampler = device.createSampler();
 
@@ -277,28 +314,44 @@ const bindGroup = device.createBindGroup({
 
 const INSTANCE_COUNT = 1;
 
-const colorTexture = context.getCurrentTexture();
+/**
+ *
+ */
+function render() {
+  const colorTexture = context.getCurrentTexture();
 
-const encoder = device.createCommandEncoder();
+  const encoder = device.createCommandEncoder();
 
-const pass = encoder.beginRenderPass({
-  label: "Render Pass",
-  colorAttachments: [{
-    view: colorTexture.createView(),
-    loadOp: "clear",
-    clearValue: CLEAR_COLOR,
-    storeOp: "store",
-  }]
+  const pass = encoder.beginRenderPass({
+    label: "Render Pass",
+    colorAttachments: [{
+      view: colorTexture.createView(),
+      loadOp: "clear",
+      clearValue: CLEAR_COLOR,
+      storeOp: "store",
+    }]
+  });
+
+  /*
+  pass.setPipeline(pipeline);
+  pass.setVertexBuffer(0, vertexBuffer);
+  pass.setIndexBuffer(indexBuffer, "uint16");
+  pass.setBindGroup(0, bindGroup);
+  pass.drawIndexed(INDEX_COUNT, INSTANCE_COUNT);
+   */
+
+  pass.setPipeline(testPipeline);
+  pass.draw(3, INSTANCE_COUNT);
+
+  pass.end();
+
+  const commandBuffer = encoder.finish();
+
+  device.queue.submit([commandBuffer]);
+}
+
+canvas.onResize((width, height) => {
+  render();
 });
 
-pass.setPipeline(pipeline);
-pass.setVertexBuffer(0, vertexBuffer);
-pass.setIndexBuffer(indexBuffer, "uint16");
-pass.setBindGroup(0, bindGroup);
-pass.drawIndexed(INDEX_COUNT, INSTANCE_COUNT);
-
-pass.end();
-
-const commandBuffer = encoder.finish();
-
-device.queue.submit([commandBuffer]);
+render();

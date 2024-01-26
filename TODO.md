@@ -6,3 +6,4 @@
 ## Refactoring
 
 - [ ] Make `WrappedCanvas` extend Canvas?
+- [ ] Don't make resize observe responsible for initial size
