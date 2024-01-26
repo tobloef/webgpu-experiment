@@ -3,10 +3,7 @@ import {loadShader, loadTexture} from "./utils/load.js";
 import {getDefaultGpuDevice} from "./utils/get-default-gpu-device.js";
 import {WebGPUCanvas} from "./utils/web-gpu-canvas.js";
 import {degToRad} from "./utils/deg-to-rad.js";
-import {
-  mat3,
-  vec2,
-} from 'https://wgpu-matrix.org/dist/2.x/wgpu-matrix.module.js';
+import mat3 from "./utils/mat3.js";
 
 WebGPUCanvas.define();
 
@@ -14,14 +11,21 @@ const CLEAR_COLOR = [0.0, 0.0, 0.0, 1.0];
 
 const FLOAT32_BYTES = 4;
 
+const CENTER_SPRITES = true;
+
 const SQUARE_SIZE = 300;
 
+const DIMENSIONS = [
+  SQUARE_SIZE,
+  SQUARE_SIZE,
+];
+
 const SQUARE_VERTEX_PIXEL_POSITIONS = [
-//          X            Y
-            0,           0, // Top Left
-            0, SQUARE_SIZE, // Bottom Left
-  SQUARE_SIZE, SQUARE_SIZE, // Bottom Right
-  SQUARE_SIZE,           0, // Top Right
+//            X              Y
+              0,             0, // Top Left
+              0, DIMENSIONS[1], // Bottom Left
+  DIMENSIONS[0], DIMENSIONS[1], // Bottom Right
+  DIMENSIONS[0],             0, // Top Right
 ];
 
 const SQUARE_VERTEX_RELATIVE_POSITIONS = [
@@ -187,21 +191,27 @@ async function initialize() {
     },
   });
 
+  let transformUserFacing = {
+    translation: [canvas.width/2, canvas.height/2],
+    rotation: 0,
+    scale: [1, 1],
+  };
+
+  const defaultTransform = new Float32Array(12);
+
   const uniformArray = new Float32Array([
-    canvas.width, canvas.height, // Resolution
-    0, 0, // Padding
-    ...mat3.identity(), // Transform
+    ...defaultTransform, // Transform
   ]);
 
-  const resolutionValue = uniformArray.subarray(0, 2);
-  const transformValue = uniformArray.subarray(4, 16);
+  const transformValue = uniformArray.subarray(0, 12);
 
   uniformBuffer = device.createBuffer({
     label: "Uniform Buffer",
     size: uniformArray.byteLength,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
-  device.queue.writeBuffer(uniformBuffer, 0, uniformArray);
+
+  updateTransform();
 
   const boxTextureData = await loadTexture("crate.png");
 
@@ -243,59 +253,59 @@ async function initialize() {
     ],
   });
 
+  function updateTransform() {
+    mat3.projection(canvas.width, canvas.height, transformValue);
+    mat3.translate(transformValue, transformUserFacing.translation, transformValue);
+    mat3.rotate(transformValue, transformUserFacing.rotation, transformValue);
+    mat3.scale(transformValue, transformUserFacing.scale, transformValue);
+    if (CENTER_SPRITES) {
+      mat3.center(transformValue, DIMENSIONS, transformValue);
+    }
+
+    device.queue.writeBuffer(uniformBuffer, 0, uniformArray);
+  }
+
   // When left arrow is pressed, translate left
   window.addEventListener("keydown", (event) => {
     if (event.key === "ArrowLeft") {
-      mat3.translate(transformValue, [-100, 0], transformValue);
+      transformUserFacing.translation[0] -= 100;
     }
     if (event.key === "ArrowRight") {
-      mat3.translate(transformValue, [100, 0], transformValue);
+      transformUserFacing.translation[0] += 100;
     }
     if (event.key === "ArrowUp") {
-      mat3.translate(transformValue, [0, -100], transformValue);
+      transformUserFacing.translation[1] -= 100;
     }
     if (event.key === "ArrowDown") {
-      mat3.translate(transformValue, [0, 100], transformValue);
+      transformUserFacing.translation[1] += 100;
     }
-
-    const size = vec2.fromValues(SQUARE_SIZE, SQUARE_SIZE);
-    const halfSize = vec2.scale(size, 0.5);
-    const negHalfSize = vec2.negate(halfSize);
 
     if (event.key === "k") {
-      // Origin to center
-      mat3.translate(transformValue, halfSize, transformValue);
-      mat3.rotate(transformValue, degToRad(-10), transformValue);
-      mat3.translate(transformValue, negHalfSize, transformValue);
+      transformUserFacing.rotation -= degToRad(10);
     }
     if (event.key === "l") {
-      mat3.translate(transformValue, halfSize, transformValue);
-      mat3.rotate(transformValue, degToRad(10), transformValue);
-      mat3.translate(transformValue, negHalfSize, transformValue);
+      transformUserFacing.rotation += degToRad(10);
     }
 
     if (event.key === "v") {
-      mat3.scale(transformValue, [0.9, 1], transformValue);
+      transformUserFacing.scale[0] -= 0.1;
     }
     if (event.key === "b") {
-      mat3.scale(transformValue, [1.1, 1], transformValue);
+      transformUserFacing.scale[0] += 0.1;
     }
     if (event.key === "n") {
-      mat3.scale(transformValue, [1, 0.9], transformValue);
+      transformUserFacing.scale[1] -= 0.1;
     }
     if (event.key === "m") {
-      mat3.scale(transformValue, [1, 1.1], transformValue);
+      transformUserFacing.scale[1] += 0.1;
     }
 
-    device.queue.writeBuffer(uniformBuffer, 0, uniformArray);
+    updateTransform();
     render();
   });
 
-  canvas.onResize((width, height) => {
-    resolutionValue.set([width, height]);
-
-    device.queue.writeBuffer(uniformBuffer, 0, uniformArray);
-
+  canvas.onResize(() => {
+    updateTransform();
     render();
   });
 }

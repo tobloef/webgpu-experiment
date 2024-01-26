@@ -32,6 +32,7 @@ module.exports = {
     "no-unused-vars": "warn",
     "jsdoc/require-param-description": "off",
     "jsdoc/require-returns-description": "off",
+    "jsdoc/require-jsdoc": "off",
     "import/extensions": ["error", "ignorePackages"],
     "import/no-unresolved": ["error", { "ignore": ["^https?://"] }],
   }

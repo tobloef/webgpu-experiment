@@ -11,7 +11,6 @@ struct Output {
 };
 
 struct Uniforms {
-    resolution: vec2f,
     transformation: mat3x3f
 };
 
@@ -23,16 +22,11 @@ fn main(
 ) -> Output {
     var output: Output;
 
-    let transformedPosition = (uniforms.transformation * vec3f(input.position, 1)).xy;
-    let clipSpacePosition = pixelSpaceToClipSpace(transformedPosition);
+    let clipSpacePosition = (uniforms.transformation * vec3f(input.position, 1)).xy;
 
     output.position = vec4f(clipSpacePosition, 0, 1);
     output.color = input.color;
     output.textureCoordinates = input.textureCoordinates;
 
     return output;
-}
-
-fn pixelSpaceToClipSpace(position: vec2f) -> vec2f {
-    return ((position / uniforms.resolution) * 2 - 1) * vec2f(1, -1);
 }
