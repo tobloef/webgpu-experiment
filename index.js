@@ -4,10 +4,15 @@ import {getDefaultGpuDevice} from "./utils/get-default-gpu-device.js";
 import {WebGPUCanvas} from "./utils/web-gpu-canvas.js";
 import {degToRad} from "./utils/deg-to-rad.js";
 import mat3 from "./utils/mat3.js";
+import {randomInt} from "./utils/random.js";
 
 WebGPUCanvas.define();
 
-const CLEAR_COLOR = [0.0, 0.0, 0.0, 1.0];
+function rgb(r, g, b, a) {
+  return [r / 255, g / 255, b / 255, a];
+}
+
+const CLEAR_COLOR = rgb(35, 35, 35, 1);
 
 const FLOAT32_BYTES = 4;
 
@@ -22,10 +27,10 @@ const DIMENSIONS = [
 
 const SQUARE_VERTEX_PIXEL_POSITIONS = [
 //            X              Y
-              0,             0, // Top Left
-              0, DIMENSIONS[1], // Bottom Left
+  0, 0, // Top Left
+  0, DIMENSIONS[1], // Bottom Left
   DIMENSIONS[0], DIMENSIONS[1], // Bottom Right
-  DIMENSIONS[0],             0, // Top Right
+  DIMENSIONS[0], 0, // Top Right
 ];
 
 const SQUARE_VERTEX_RELATIVE_POSITIONS = [
@@ -59,9 +64,9 @@ const SQUARE_VERTEX_COLORS = COLORED_SQUARE_VERTEX_COLORS;
 const SQUARE_VERTEX_TEXTURE_COORDINATES = [
 // X    Y
   0.0, 0.0,
-  0.0, 1/3,
-  1/3, 1/3,
-  1/3, 0.0,
+  0.0, 1 / 3,
+  1 / 3, 1 / 3,
+  1 / 3, 0.0,
 ];
 
 const SQUARE_INDEXES = new Uint16Array([
@@ -86,13 +91,19 @@ const squareVertexInfoList = [
 
 const vertexInfoList = squareVertexInfoList;
 
-const BYTES_PER_VERTEX = vertexInfoList.reduce((total, info) => total + info.elementsPerVertex*FLOAT32_BYTES, 0);
+const BYTES_PER_VERTEX = vertexInfoList.reduce(
+  (total, info) => total + info.elementsPerVertex * FLOAT32_BYTES, 0
+);
 
 const VERTICES = new Float32Array(
   packVertexData(vertexInfoList)
 );
 
 const INDEX_COUNT = SQUARE_INDEXES.length;
+
+const SPRITES = [];
+const minSpriteIndex = 4;
+const maxSpriteIndex = 15;
 
 /**
  *
@@ -112,9 +123,81 @@ async function initialize() {
     }
   });
 
+  // SPRITE SHIT
+  {
+    for (let i = minSpriteIndex; i <= maxSpriteIndex; i++) {
+      const folder = "assets/micro-roguelike/Tiles/Colored/";
+      const file = `tile_${String(i).padStart(4, '0')}.png`;
+      const url = folder + file;
+      const bitmap = await loadTexture(url);
+      const texture = device.createTexture({
+        label: `Sprite: ${file}`,
+        size: [bitmap.width, bitmap.height],
+        format: "rgba8unorm",
+        usage: (
+          GPUTextureUsage.TEXTURE_BINDING |
+          GPUTextureUsage.COPY_DST |
+          GPUTextureUsage.RENDER_ATTACHMENT
+        ),
+      });
+      device.queue.copyExternalImageToTexture(
+        { source: bitmap, flipY: false },
+        { texture: texture },
+        [bitmap.width, bitmap.height]
+      );
+      SPRITES[i] = texture;
+    }
+
+    spriteShader = device.createShaderModule({
+      label: "Sprite Shader",
+      code: await loadShader("shaders/sprite.wgsl"),
+    });
+
+    const spriteVertices = new Float32Array([
+      0, 0,
+      0, 1,
+      1, 1,
+      1, 0,
+    ]);
+
+    const spriteIndexes = new Uint16Array([
+      0, 1, 2,
+      0, 2, 3,
+    ]);
+    spriteIndexCount = spriteIndexes.length;
+
+    spriteVertexBuffer = device.createBuffer({
+      label: "Sprite Vertex Buffer",
+      size: spriteVertices.byteLength,
+      usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+    });
+    device.queue.writeBuffer(spriteVertexBuffer, 0, spriteVertices);
+
+    spriteIndexBuffer = device.createBuffer({
+      label: "Sprite Index Buffer",
+      size: spriteIndexes.byteLength,
+      usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
+    });
+    device.queue.writeBuffer(spriteIndexBuffer, 0, spriteIndexes);
+
+    spriteVertexBufferLayout = {
+      arrayStride: 2 * FLOAT32_BYTES,
+      attributes: [
+        // Position
+        {
+          shaderLocation: 0,
+          format: "float32x2",
+          offset: 0,
+        },
+      ],
+    };
+
+    spriteSampler = device.createSampler();
+  }
+
   context = canvas.getContext("webgpu");
 
-  const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
+  presentationFormat = navigator.gpu.getPreferredCanvasFormat();
 
   context.configure({
     device,
@@ -151,13 +234,13 @@ async function initialize() {
       {
         shaderLocation: 1,
         format: "float32x4",
-        offset: 2*FLOAT32_BYTES,
+        offset: 2 * FLOAT32_BYTES,
       },
       // Texture Coordinates
       {
         shaderLocation: 2,
         format: "float32x2",
-        offset: 6*FLOAT32_BYTES,
+        offset: 6 * FLOAT32_BYTES,
       }
     ],
   };
@@ -166,12 +249,12 @@ async function initialize() {
 
   const vertexShader = device.createShaderModule({
     label: "Vertex Shader",
-    code: await loadShader("vertex.wgsl")
+    code: await loadShader("shaders/vertex.wgsl")
   });
 
   const fragmentShader = device.createShaderModule({
     label: "Fragment Shader",
-    code: await loadShader("fragment.wgsl")
+    code: await loadShader("shaders/fragment.wgsl")
   });
 
   pipeline = await device.createRenderPipelineAsync({
@@ -192,7 +275,7 @@ async function initialize() {
   });
 
   let transformUserFacing = {
-    translation: [canvas.width/2, canvas.height/2],
+    translation: [canvas.width / 2, canvas.height / 2],
     rotation: 0,
     scale: [1, 1],
   };
@@ -213,7 +296,7 @@ async function initialize() {
 
   updateTransform();
 
-  const boxTextureData = await loadTexture("crate.png");
+  const boxTextureData = await loadTexture("assets/crate.png");
 
   const boxTexture = device.createTexture({
     label: "Box Texture",
@@ -227,7 +310,7 @@ async function initialize() {
   });
 
   device.queue.copyExternalImageToTexture(
-    { source: boxTextureData, flipY: true },
+    { source: boxTextureData, flipY: false },
     { texture: boxTexture },
     [boxTextureData.width, boxTextureData.height]
   );
@@ -267,41 +350,36 @@ async function initialize() {
 
   // When left arrow is pressed, translate left
   window.addEventListener("keydown", (event) => {
+    let didNothing = false;
+
     if (event.key === "ArrowLeft") {
       transformUserFacing.translation[0] -= 100;
-    }
-    if (event.key === "ArrowRight") {
+    } else if (event.key === "ArrowRight") {
       transformUserFacing.translation[0] += 100;
-    }
-    if (event.key === "ArrowUp") {
+    } else if (event.key === "ArrowUp") {
       transformUserFacing.translation[1] -= 100;
-    }
-    if (event.key === "ArrowDown") {
+    } else if (event.key === "ArrowDown") {
       transformUserFacing.translation[1] += 100;
-    }
-
-    if (event.key === "k") {
+    } else if (event.key === "k") {
       transformUserFacing.rotation -= degToRad(10);
-    }
-    if (event.key === "l") {
+    } else if (event.key === "l") {
       transformUserFacing.rotation += degToRad(10);
-    }
-
-    if (event.key === "v") {
+    } else if (event.key === "v") {
       transformUserFacing.scale[0] -= 0.1;
-    }
-    if (event.key === "b") {
+    } else if (event.key === "b") {
       transformUserFacing.scale[0] += 0.1;
-    }
-    if (event.key === "n") {
+    } else if (event.key === "n") {
       transformUserFacing.scale[1] -= 0.1;
-    }
-    if (event.key === "m") {
+    } else if (event.key === "m") {
       transformUserFacing.scale[1] += 0.1;
+    } else {
+      didNothing = true;
     }
 
-    updateTransform();
-    render();
+    if (!didNothing) {
+      updateTransform();
+      render();
+    }
   });
 
   canvas.onResize(() => {
@@ -320,12 +398,17 @@ let vertexBuffer;
 let indexBuffer;
 let bindGroup;
 let uniformBuffer;
+let presentationFormat;
+let spriteShader;
+let spriteVertexBuffer;
+let spriteIndexBuffer;
+let spriteBindGroup;
+let spriteIndexCount;
+let spriteVertexBufferLayout;
+let spriteSampler;
 
 await initialize();
 
-/**
- *
- */
 function render() {
   const colorTexture = context.getCurrentTexture();
 
@@ -341,11 +424,83 @@ function render() {
     }]
   });
 
+  function drawSprite(spriteIndex, x, y) {
+    const spriteTexture = SPRITES[spriteIndex];
+
+    const labelPart = `(${spriteIndex}, ${x}, ${y})`;
+
+    const spritePipeline = device.createRenderPipeline({
+      label: `Sprite Render Pipeline (${labelPart})`,
+      layout: "auto",
+      vertex: {
+        module: spriteShader,
+        entryPoint: "vertex",
+        buffers: [spriteVertexBufferLayout],
+      },
+      fragment: {
+        module: spriteShader,
+        entryPoint: "fragment",
+        targets: [{
+          format: presentationFormat,
+        }],
+      },
+    });
+
+    const spriteUniformArray = new Float32Array(12);
+
+    const spriteUniformBuffer = device.createBuffer({
+      label: "Sprite Uniform Buffer",
+      size: spriteUniformArray.byteLength,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+
+    mat3.projection(canvas.width, canvas.height, spriteUniformArray);
+    mat3.translate(spriteUniformArray, [x, y], spriteUniformArray);
+    mat3.scale(spriteUniformArray, [100, 100], spriteUniformArray);
+    mat3.center(spriteUniformArray, [1, 1], spriteUniformArray);
+
+    device.queue.writeBuffer(spriteUniformBuffer, 0, spriteUniformArray);
+
+    spriteBindGroup = device.createBindGroup({
+      label: `Sprite Bind Group (${labelPart})`,
+      layout: spritePipeline.getBindGroupLayout(0),
+      entries: [
+        {
+          binding: 0,
+          resource: {
+            buffer: spriteUniformBuffer,
+          },
+        },
+        {
+          binding: 1,
+          resource: spriteSampler,
+        },
+        {
+          binding: 2,
+          resource: spriteTexture.createView(),
+        },
+      ],
+    });
+
+    pass.setPipeline(spritePipeline);
+    pass.setVertexBuffer(0, spriteVertexBuffer);
+    pass.setIndexBuffer(spriteIndexBuffer, "uint16");
+    pass.setBindGroup(0, spriteBindGroup);
+    pass.drawIndexed(spriteIndexCount);
+  }
+
   pass.setPipeline(pipeline);
   pass.setVertexBuffer(0, vertexBuffer);
   pass.setIndexBuffer(indexBuffer, "uint16");
   pass.setBindGroup(0, bindGroup);
   pass.drawIndexed(INDEX_COUNT);
+
+  for (let i = 0; i < 1000; i++) {
+    const index = randomInt(minSpriteIndex, maxSpriteIndex);
+    const x = randomInt(0, canvas.width);
+    const y = randomInt(0, canvas.height);
+    drawSprite(index, x, y);
+  }
 
   pass.end();
 
@@ -355,3 +510,10 @@ function render() {
 }
 
 render();
+
+const animate = () => {
+  render();
+  requestAnimationFrame(animate);
+}
+
+animate();
